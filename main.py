@@ -16,7 +16,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # === CORS ===
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://chat-kenya.vercel.app"],
+    allow_origins=["http://localhost:5173", "https://chatapp-frontend-three-sigma.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
