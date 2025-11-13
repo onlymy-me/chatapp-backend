@@ -49,12 +49,24 @@ def verify_token(token: str):
     except JWTError:
         return None
 
-# === Models ===
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    username = verify_token(token)
+    if not username:
+        raise HTTPException(401, "Invalid token")
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(401, "User not found")
+    return user
+
+def require_admin(user: User = Depends(get_current_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Admin access required")
+    return user
+
 class LoginForm(BaseModel):
     username: str
     password: str
 
-# === Chat State ===
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[WebSocket, str] = {}  # ws -> username
@@ -98,7 +110,6 @@ def register(form: LoginForm, db: Session = Depends(get_db)):
     db.commit()
     return {"msg": "User registered successfully"}
 
-# === Routes ===
 @app.post("/login")
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form.username).first()
@@ -107,7 +118,32 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     token = create_token({"sub": user.username})
     return {"access_token": token, "token_type": "bearer"}
 
-# === WebSocket ===
+@app.get("/admin/users/login")
+def get_users(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    return db.query(User).all()
+
+@app.post("/admin/users")
+def create_user(
+    username: str, email: str, password: str, role: str = "user",
+    admin: User = Depends(require_admin), db: Session = Depends(get_db)
+):
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(400, "Username taken")
+    hashed = get_password_hash(password)
+    user = User(username=username, email=email, hashed_password=hashed, role=role)
+    db.add(user)
+    db.commit()
+    return {"msg": "User created", "role": role}
+
+@app.delete("/admin/users/{user_id}")
+def delete_user(user_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    db.delete(user)
+    db.commit()
+    return {"msg": "User deleted"}
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = "", db: Session = Depends(get_db)):
     username = verify_token(token)
