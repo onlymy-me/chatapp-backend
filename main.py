@@ -118,7 +118,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     token = create_token({"sub": user.username})
     return {"access_token": token, "token_type": "bearer"}
 
-@app.get("/admin/users/login")
+@app.get("/admin/users")
 def get_users(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     return db.query(User).all()
 
